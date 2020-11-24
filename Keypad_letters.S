@@ -1,238 +1,178 @@
 #include <xc.inc>
     
-;extrn	UART_Setup, UART_Transmit_Message  ; external subroutines
-extrn	LCD_Setup, LCD_Write_Message, LCD_delay_x4us, LCD_delay_ms, LCD_Write_Hex, LCD_Clear
-;extrn	write_table_start
-global  wait_letters
-global	output, output1, output2, output3, output4, output_counter,output1_compare, output2_compare, output3_compare, output4_compare 
-
-psect	udata_acs   ; reserve data space in access ram
-no_input:	ds 1
-row_split1:	ds 1
-row_split2:	ds 1
-row_split3:	ds 1
-column_split1:  ds 1
-column_split2:  ds 1
-column_split3:	ds 1    ; reserve one byte for a counter variable
-column:		ds 1
-row:		ds 1
-output_compare:	ds 1
-output:		ds 1
-output1:	ds 1
-output2:	ds 1
-output3:	ds 1
-output4:	ds 1
-output1_compare:    ds 1
-output2_compare:    ds 1
-output3_compare:    ds 1
-output4_compare:    ds 1
-output_counter: ds 1
-anon:		ds 1	;0 if diplay shows numbers, 1 if display hides number values
-anon_compare:	ds 1	;always constant, only to compare
-   
-psect	keypad_code,class=CODE
+extrn	LCD_delay_x4us, LCD_delay_ms
+extrn	check_output, change_anon, lock, change_pin 
+extrn	no_input, row_split1, row_split2, row_split3, column_split1, column_split2, column_split3, column, row
+global  wait_letter_input
     
-wait_letters:
-    movlb   0x0F	;set BSR so can access PADCFG1 changed from 0x0F
-    bsf	    REPU	;set PORTE pull ups on
-    clrf    LATE,A	;Clear LATE
-    movlw   0x0F	;Configre 0:3 inputs, 4:7 outputs
+psect	keypad_letter_code,class=CODE
+    
+wait_letter_input: 
+    movlb   0x0F	
+    bsf	    REPU	
+    clrf    LATE,A	
+    movlw   0x0F	
     movwf   TRISE,A
-    movlw   0x0A	;call 40 microsecond delay  
+    movlw   0x0A	  
     call    LCD_delay_x4us
-    movff   PORTE,column,A	;Read PORTE and store columns in memory
+    movff   PORTE,column,A	
     movf    no_input,W,A
     CPFSLT  column,A
-    bra     wait_letters
-    call    keypad_read
+    bra     wait_letter_input
+    goto    letter_read
     return
     
-    
-write_output1:
-    movff   output, output1
-    movff   output, output1_compare
-    movlw   0x01
-    movwf   output_counter,A
-    return
-    
-write_output2:
-    movff   output, output2,A
-    movff   output, output2_compare
-    movlw   0x02
-    movwf   output_counter,A
-    return
+letter_read:
+    movlb   0x0F		
+    bsf	    REPU	
+    clrf    LATE,A		
+    movlw   0x0F	
+    movwf   TRISE,A
+    movff   PORTE,column,A	
+    movlw   0x0A	
+    call    LCD_delay_x4us
+				
+    movlw   0xF0	
+    movwf   TRISE,A
+    movlw   0x0A	
+    call    LCD_delay_x4us
+    movff   PORTE, row,A
+    goto    letter_decode
 
-write_output3:
-    movff   output, output3,A
-    movff   output, output3_compare
-    movlw   0x03
-    movwf   output_counter,A
-    return    
-    
-write_output4:
-    movff   output, output4,A
-    movff   output, output4_compare
-    movlw   0x04
-    movwf   output_counter,A
-    return
-
- keypad_decode_letters:
+letter_decode:
     movf    column,W,A
     cpfsgt  column_split1,A
-    goto    column1or2
-    goto    column3or4
+    goto    let_column1or2
+    goto    let_column3or4
     
-column1or2:
+let_column1or2:
     cpfseq  column_split3,A
-    goto    column1rows
-    goto    column2rows
-    
- column3or4:
+    goto    let_column1rows
+    goto    let_column2rows
+let_column3or4:
     cpfsgt  column_split2,A
-    goto    column3rows
-    goto    column4rows
-    return
-    
-column1rows:
+    goto    let_column3rows
+    goto    let_column4rows
+    return  
+let_column1rows:
     movf    row,W,A
     cpfsgt  row_split1,A
-    goto    c1row1or2
-    goto    c1row3or4
-c1row1or2:
+    goto    let_c1row1or2
+    goto    let_c1row3or4
+let_c1row1or2:
     cpfsgt  row_split2,A
-    goto    c1r1
-    goto    c1r2
-    
-c1row3or4:
+    goto    let_c1r1
+    goto    let_c1r2
+let_c1row3or4:
     cpfsgt  row_split3,A
-    goto    c1r3
-    goto    c1r4
+    goto    let_c1r3
+    goto    let_c1r4
 
-c1r1:
-    movlw   0x01
-    movwf   output,A    ;write 1
-    call    check_output
-    return
-c1r2:
-    movlw   0x04
-    movwf   output,A    ;write 4
-    call    check_output
-    return
-c1r3:
-    movlw   0x07
-    movwf   output,A    ;write 7
-    call    check_output
-    return
-c1r4:
-    movlw   0x0A
-    movwf   output,A    ;write A
-    call    check_output
+let_c1r1:
+    movlw   0xDD
+    call    LCD_delay_ms
+    goto    wait_letter_input
+let_c1r2:
+    movlw   0xDD
+    call    LCD_delay_ms
+    goto    wait_letter_input
+let_c1r3:
+    movlw   0xDD
+    call    LCD_delay_ms
+    goto    wait_letter_input
+let_c1r4:			    ;Calls locking subroutine
+    call     lock
     return
     
- column2rows:
+let_column2rows:
     movf    row,W,A
     cpfsgt  row_split1,A
-    goto    c2row1or2
-    goto    c2row3or4
-c2row1or2:
+    goto    let_c2row1or2
+    goto    let_c2row3or4
+let_c2row1or2:
     cpfsgt  row_split2,A
-    goto    c2r1
-    goto    c2r2
-    
-c2row3or4:
+    goto    let_c2r1
+    goto    let_c2r2
+let_c2row3or4:
     cpfsgt  row_split3,A
-    goto    c2r3
-    goto    c2r4
+    goto    let_c2r3
+    goto    let_c2r4
 
-c2r1:
-    movlw   0x02
-    movwf   output,A    ;write 2
-    call    check_output
-    return
-c2r2:
-    movlw   0x05
-    movwf   output,A    ;write 5
-    call    check_output
-    return
-c2r3:
-    movlw   0x08
-    movwf   output,A    ;write 8
-    call    check_output
-    return
-c2r4:
-    movlw   0x00
-    movwf   output,A    ;write 0
-    call    check_output
-    return
+let_c2r1:
+    movlw   0xDD
+    call    LCD_delay_ms
+    goto    wait_letter_input
+let_c2r2:
+    movlw   0xDD
+    call    LCD_delay_ms
+    goto    wait_letter_input
+let_c2r3:
+    movlw   0xDD
+    call    LCD_delay_ms
+    goto    wait_letter_input
+let_c2r4:
+    movlw   0xDD
+    call    LCD_delay_ms
+    goto    wait_letter_input
     
- column3rows:
+let_column3rows:
     movf    row,W,A
     cpfsgt  row_split1,A
-    goto    c3row1or2
-    goto    c3row3or4
-c3row1or2:
+    goto    let_c3row1or2
+    goto    let_c3row3or4
+let_c3row1or2:
     cpfsgt  row_split2,A
-    goto    c3r1
-    goto    c3r2
-    
-c3row3or4:
+    goto    let_c3r1
+    goto    let_c3r2
+let_c3row3or4:
     cpfsgt  row_split3,A
-    goto    c3r3
-    goto    c3r4
+    goto    let_c3r3
+    goto    let_c3r4
 
-c3r1:
-    movlw   0x03
-    movwf   output,A    ;write 3
-    call    check_output
-    return
-c3r2:
-    movlw   0x06
-    movwf   output,A    ;write 6
-    call    check_output
-    return
-c3r3:
-    movlw   0x09
-    movwf   output,A    ;write 9
-    call    check_output
-    return
-c3r4:
-    movlw   0x0B
-    movwf   output,A    ;write B
-    call    check_output
+let_c3r1:
+    movlw   0xDD
+    call    LCD_delay_ms
+    goto    wait_letter_input
+let_c3r2:
+    movlw   0xDD
+    call    LCD_delay_ms
+    goto    wait_letter_input
+let_c3r3:
+    movlw   0xDD
+    call    LCD_delay_ms
+    goto    wait_letter_input
+let_c3r4:			    ;Calls change anon mode subroutine
+    call    change_anon
     return
     
- column4rows:
+let_column4rows:
     movf    row,W,A
     cpfsgt  row_split1,A
-    goto    c4row1or2
-    goto    c4row3or4
-c4row1or2:
+    goto    let_c4row1or2
+    goto    let_c4row3or4
+let_c4row1or2:
     cpfsgt  row_split2,A
-    goto    c4r1
-    goto    c4r2
-    
-c4row3or4:
+    goto    let_c4r1
+    goto    let_c4r2
+let_c4row3or4:
     cpfsgt  row_split3,A
-    goto    c4r3
-    goto    c4r4
+    goto    let_c4r3
+    goto    let_c4r4
 
-c4r1:
-    movlw   0x0F
-    movwf   output,A    ;write F
-    call    check_output
+let_c4r1:
+    movlw   0xDD
+    call    LCD_delay_ms
+    goto    wait_letter_input
+let_c4r2:
+    movlw   0xDD
+    call    LCD_delay_ms
+    goto    wait_letter_input
+let_c4r3:
+    movlw   0xDD
+    call    LCD_delay_ms
+    goto    wait_letter_input
+let_c4r4:			;Calls change pin subroutine
+    call     change_pin
     return
-c4r2:
-    movlw   0x0E
-    movwf   output,A    ;write E
-    call    check_output
-    return
-c4r3:
-    movlw   0x0D
-    movwf   output,A    ;write D
-    call    check_output
-    return
-c4r4:
-    movlw   0x0C
-    movwf   output,A    ;write C
-    call    check_output
-    return
+    
+end

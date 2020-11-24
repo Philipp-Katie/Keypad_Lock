@@ -16,6 +16,7 @@ myTable:
 	align	2
 	
 psect	table_code,class=CODE	
+					    ;Writes wrong code message to the LCD after wrong code is entered
 write_wrong: 	
 	start: 	lfsr	0, myArray	
 	movlw	low highword(myTable)	
